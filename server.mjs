@@ -32,14 +32,15 @@ function throttle(req) {
   return true;
 }
 function normalizeResult(item) {
-  const rawPrice = Number(item.extracted_price);
-  const price = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : null;
+  const extractedPrice = Number(item.extracted_price);
+  const validPrice = Number.isFinite(extractedPrice) && extractedPrice >= 1000;
+  const price = validPrice ? extractedPrice : null;
   const link = item.product_link || item.link || '';
   let safeLink = '';
   try { if (new URL(link).protocol === 'https:') safeLink = link; } catch {}
   let image = '';
   try { if (new URL(item.thumbnail || '').protocol === 'https:') image = item.thumbnail; } catch {}
-  const format = classifyFormat(String(item.title || ''), price);
+  const format = classifyFormat(String(item.title || ''), validPrice ? price : Number.isFinite(extractedPrice) && extractedPrice > 0 ? extractedPrice : null);
   return {
     productKey: createHash('sha256').update(`${item.title || ''}|${item.source || ''}`.toLocaleLowerCase('es-CL').replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 24),
     title: String(item.title || 'Perfume').slice(0, 180),
@@ -47,7 +48,8 @@ function normalizeResult(item) {
     price,
     format: format.type,
     formatNote: format.note,
-    priceText: String(item.price || '').slice(0, 60),
+    priceText: Number.isFinite(extractedPrice) && extractedPrice > 0 && extractedPrice < 1000 ? 'Precio a verificar' : String(item.price || '').slice(0, 60),
+    priceWarning: Number.isFinite(extractedPrice) && extractedPrice > 0 && extractedPrice < 1000 ? 'La búsqueda devolvió un valor menor a $1.000 CLP; podría estar mal interpretado.' : '',
     url: safeLink,
     image,
     rating: item.rating ? String(item.rating).slice(0, 10) : '',
