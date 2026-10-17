@@ -1,6 +1,6 @@
 let query = '';
 let sort = 'price-asc';
-let formatFilter = 'full';
+let formatFilter = 'all';
 let results = [];
 let busy = false;
 let searchSequence = 0;
@@ -96,7 +96,12 @@ async function search(term) {
     if (!response.ok) throw new Error(data.error || `Error ${response.status}`);
     results = Array.isArray(data.results) ? data.results : [];
     const timestamp = data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
-    searchStatus.textContent = results.length ? `Precios de ${data.source || 'la web'}${timestamp ? ` · consultados ${timestamp}` : ''}. Confirma el valor en la tienda.` : 'No encontramos ofertas para esta búsqueda. Prueba en las tiendas:';
+    if (results.length) {
+      const fullCount = results.filter(item => item.format === 'full').length;
+      const decantCount = results.filter(item => item.format === 'decant').length;
+      const checkCount = results.length - fullCount - decantCount;
+      searchStatus.textContent = `${results.length} ofertas: ${fullCount} frascos completos probables, ${decantCount} decants/muestras y ${checkCount} por confirmar · ${data.source || 'búsqueda web'}${timestamp ? ` · ${timestamp}` : ''}.`;
+    } else searchStatus.textContent = 'No encontramos ofertas para esta búsqueda. Prueba en las tiendas:';
   } catch (error) {
     if (sequence !== searchSequence) return;
     searchStatus.textContent = error.message || 'No se pudo conectar al servidor. Puedes buscar en estas tiendas:';
@@ -110,7 +115,10 @@ async function search(term) {
 
 document.querySelector('#search-form').addEventListener('submit', event => {
   event.preventDefault();
-  search(document.querySelector('#search-input').value);
+  const field = document.querySelector('#search-input');
+  const term = field.value;
+  void search(term);
+  field.value = term;
 });
 document.querySelector('#sort-select').addEventListener('change', event => { sort = event.target.value; render(); });
 document.querySelector('#format-filter').addEventListener('change', event => { formatFilter = event.target.value; render(); });
