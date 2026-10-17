@@ -39,17 +39,32 @@ function normalizeResult(item) {
   try { if (new URL(link).protocol === 'https:') safeLink = link; } catch {}
   let image = '';
   try { if (new URL(item.thumbnail || '').protocol === 'https:') image = item.thumbnail; } catch {}
+  const format = classifyFormat(String(item.title || ''), price);
   return {
     productKey: createHash('sha256').update(`${item.title || ''}|${item.source || ''}`.toLocaleLowerCase('es-CL').replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 24),
     title: String(item.title || 'Perfume').slice(0, 180),
     shop: String(item.source || 'Tienda en línea').slice(0, 80),
     price,
+    format: format.type,
+    formatNote: format.note,
     priceText: String(item.price || '').slice(0, 60),
     url: safeLink,
     image,
     rating: item.rating ? String(item.rating).slice(0, 10) : '',
     delivery: String(item.delivery || '').slice(0, 100)
   };
+}
+function classifyFormat(title, price) {
+  const explicitDecant = /\b(decants?|decantes?|muestras?|samples?|viales?|vials?|atomizadores?|travel\s*(?:size|spray)|miniaturas?)\b/i.test(title);
+  const mlMatch = title.match(/(\d+(?:[.,]\d+)?)\s*(?:ml|mililitros?)\b/i);
+  const ozMatch = title.match(/(\d+(?:[.,]\d+)?)\s*(?:fl\.?\s*)?oz\b/i);
+  const volume = mlMatch ? Number(mlMatch[1].replace(',', '.')) : ozMatch ? Number(ozMatch[1].replace(',', '.')) * 29.5735 : null;
+  if (explicitDecant) return { type: 'decant', note: 'La publicación menciona decant, muestra o vial.' };
+  if (volume !== null && volume <= 10) return { type: 'decant', note: `Formato pequeño de ${volume} ml; probable decant o muestra.` };
+  if (volume !== null && volume >= 30 && (price === null || price >= 5000)) return { type: 'full', note: `El título indica ${Math.round(volume)} ml; parece frasco completo.` };
+  if (volume !== null && volume < 30) return { type: 'check', note: `Formato de ${Math.round(volume)} ml; revisa si es miniatura o decant.` };
+  if (price !== null && price < 5000) return { type: 'check', note: 'Precio muy bajo para un frasco completo; podría ser una muestra o decant.' };
+  return { type: 'check', note: 'La publicación no indica claramente el tamaño del frasco.' };
 }
 async function recordPrices(query, results) {
   if (!results.length) return;

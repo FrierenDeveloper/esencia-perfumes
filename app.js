@@ -1,5 +1,6 @@
 let query = '';
 let sort = 'price-asc';
+let formatFilter = 'full';
 let results = [];
 let busy = false;
 let searchSequence = 0;
@@ -44,17 +45,23 @@ function webSearchLinks(term) {
   webSearch.innerHTML = `<p class="web-search-heading">Buscar <strong>${escapeHtml(term)}</strong> directamente en tiendas:</p><div class="web-search-links">${retailers.map(([name, href]) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(name)} <span>↗</span></a>`).join('')}</div>`;
 }
 function render() {
-  const ordered = results.slice().sort((a, b) => {
+  const filtered = results.filter(item => formatFilter === 'all' || (item.format || 'check') === formatFilter);
+  const ordered = filtered.slice().sort((a, b) => {
     if (a.price == null && b.price == null) return 0;
     if (a.price == null) return 1;
     if (b.price == null) return -1;
     return sort === 'price-desc' ? b.price - a.price : a.price - b.price;
   });
-  document.querySelector('#result-count').textContent = query ? `${results.length} ${results.length === 1 ? 'oferta' : 'ofertas'}` : 'Búsqueda en línea';
-  emptyState.hidden = results.length > 0 || !query || busy;
+  const countLabel = filtered.length === 1 ? 'oferta' : 'ofertas';
+  document.querySelector('#result-count').textContent = query ? `${filtered.length} ${countLabel}${formatFilter !== 'all' ? ` · ${results.length} en total` : ''}` : 'Búsqueda en línea';
+  emptyState.hidden = filtered.length > 0 || !query || busy;
+  emptyState.textContent = results.length && !filtered.length
+    ? formatFilter === 'full' ? 'No detectamos frascos completos en estas ofertas. Revisa “Formato por confirmar” o muestra todos.' : 'No hay ofertas en este filtro. Prueba otra búsqueda o muestra todos los formatos.'
+    : 'No encontramos ofertas para esta búsqueda. Prueba en las tiendas:';
   grid.innerHTML = ordered.map(item => `<article class="product-card online-card">
-    <div class="product-art online-art">${item.image ? `<img src="${escapeHtml(item.image)}" alt="Imagen del producto publicado por ${escapeHtml(item.shop)}" loading="lazy" referrerpolicy="no-referrer">` : '<span class="online-placeholder">✳</span>'}<span class="offer-badge">Chile · web</span></div>
+    <div class="product-art online-art ${item.format === 'decant' ? 'format-decant' : item.format === 'full' ? 'format-full' : 'format-check'}">${item.image ? `<img src="${escapeHtml(item.image)}" alt="Imagen del producto publicado por ${escapeHtml(item.shop)}" loading="lazy" referrerpolicy="no-referrer">` : '<span class="online-placeholder">✳</span>'}<span class="offer-badge">${item.format === 'decant' ? 'Decant / muestra' : item.format === 'full' ? 'Frasco completo · probable' : 'Formato por confirmar'}</span></div>
     <div class="product-info"><span class="product-category">${escapeHtml(item.shop || 'Tienda en línea')}</span><h3>${escapeHtml(item.title)}</h3>
+      <p class="format-note">${escapeHtml(item.formatNote || (item.price != null && item.price < 5000 ? 'Precio bajo: verifica si es muestra o decant.' : 'Revisa el tamaño y formato en la publicación.'))}</p>
       ${item.rating ? `<span class="product-brand">Calificación: ${escapeHtml(item.rating)}</span>` : ''}
       <div class="price-row"><div><span class="price-label">Precio publicado</span><div class="price">${item.price !== null && item.price !== undefined ? formatPrice(item.price) : escapeHtml(item.priceText || 'Ver precio')}</div></div>${item.delivery ? `<span class="offer-count">${escapeHtml(item.delivery)}</span>` : ''}</div>
       ${item.url ? `<a class="best-offer" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Ver en ${escapeHtml(item.shop || 'tienda')} <span>↗</span></a>` : ''}
@@ -106,6 +113,7 @@ document.querySelector('#search-form').addEventListener('submit', event => {
   search(document.querySelector('#search-input').value);
 });
 document.querySelector('#sort-select').addEventListener('change', event => { sort = event.target.value; render(); });
+document.querySelector('#format-filter').addEventListener('change', event => { formatFilter = event.target.value; render(); });
 document.querySelector('#product-grid').addEventListener('click', async event => {
   const button = event.target.closest('.history-toggle');
   if (!button) return;
