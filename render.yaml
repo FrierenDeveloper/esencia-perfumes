@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: esencia-price-search
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: SERPAPI_API_KEY
+        sync: false

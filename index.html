@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f3ed">
+  <meta name="description" content="Compara precios de perfumes en distintas tiendas desde un solo lugar.">
+  <title>Esencia — encuentra tu mejor precio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#inicio" aria-label="Esencia, inicio"><span class="brand-mark">e</span>esencia<span class="brand-dot">.</span></a>
+    <nav aria-label="Navegación principal"><a href="#catalogo">Explorar</a><a href="#como-funciona">Cómo funciona</a></nav>
+    <a class="top-link" href="#catalogo">Ver ofertas <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="inicio">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="eyebrow-line"></span>Tu próximo aroma, al mejor precio</p>
+        <h1>El perfume que amas.<br><em>Al precio que buscas.</em></h1>
+        <p class="hero-description">Buscamos fragancias en tiendas chilenas para ayudarte a comparar precios en pesos chilenos.</p>
+        <a class="hero-cta" href="#catalogo">Encuentra tu perfume <span aria-hidden="true">↓</span></a>
+        <div class="hero-proof"><span class="proof-stars">★★★★★</span><span>Precios claros, elección inteligente</span></div>
+      </div>
+      <div class="hero-visual" aria-label="Frasco de perfume sobre un fondo cálido">
+        <div class="sun-orb"></div><div class="leaf leaf-one"></div><div class="leaf leaf-two"></div>
+        <div class="perfume-bottle"><div class="bottle-cap"></div><div class="bottle-neck"></div><div class="bottle-body"><span class="bottle-label">ESSENCE<br><small>PARIS · 50 ML</small></span></div></div>
+        <div class="floating-note"><span class="note-icon">✳</span><span><strong>Busca en línea</strong><small>Compara ofertas actuales</small></span><span class="note-arrow">↗</span></div>
+        <span class="visual-caption">Una buena elección se siente.</span>
+      </div>
+    </section>
+
+    <section class="catalog" id="catalogo">
+      <div class="section-heading"><div><p class="eyebrow">UNA SELECCIÓN PARA TI</p><h2>Encuentra tu esencia</h2></div><span class="result-count" id="result-count"></span></div>
+      <form class="search-bar" id="search-form" role="search">
+        <span class="search-icon" aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Busca un perfume o marca (ej. Hawas, Dior...)" aria-label="Buscar perfumes"><button type="submit">Buscar <span aria-hidden="true">→</span></button>
+      </form>
+      <div class="filter-row"><span class="search-status" id="search-status" role="status">Busca un perfume y compara ofertas en Chile en pesos chilenos.</span><label class="sort-control" for="sort-select">Ordenar por <select id="sort-select"><option value="price-asc">Menor precio</option><option value="price-desc">Mayor precio</option></select></label></div>
+      <div class="product-grid" id="product-grid" aria-live="polite"></div>
+      <p class="empty-state" id="empty-state" hidden>No encontramos perfumes con esa búsqueda. Prueba con otra marca o categoría.</p>
+      <div class="web-search" id="web-search" hidden></div>
+      <details class="api-settings"><summary>Configuración de búsqueda en la app</summary><p>Para mostrar precios comparados dentro de la app, configura la URL del servidor seguro de Esencia. La clave de búsqueda se guarda solo en el servidor, nunca aquí.</p><form id="api-config-form"><input id="api-base-url" type="url" inputmode="url" placeholder="https://tu-servidor-esencia.onrender.com" aria-label="URL del servidor de búsqueda"><button type="submit">Guardar</button><button type="button" class="clear-config" id="clear-api-url">Borrar</button></form></details>
+      <p class="data-note">Los precios y la disponibilidad vienen de las páginas enlazadas y pueden cambiar. Verifícalos en la tienda antes de comprar.</p>
+    </section>
+
+    <section class="how" id="como-funciona"><div class="how-heading"><p class="eyebrow">SIMPLE, COMO DEBERÍA SER</p><h2>Tu mejor compra, en tres pasos</h2></div><div class="steps"><article><span class="step-number">01</span><h3>Busca</h3><p>Encuentra ese perfume que tienes en mente, por nombre o marca.</p></article><article><span class="step-number">02</span><h3>Compara</h3><p>Mira las opciones disponibles y revisa el precio de cada una.</p></article><article><span class="step-number">03</span><h3>Elige</h3><p>Visita la tienda que prefieras y disfruta de tu nueva fragancia.</p></article></div></section>
+  </main>
+  <footer><a class="brand" href="#inicio"><span class="brand-mark">e</span>esencia<span class="brand-dot">.</span></a><span>Encuentra tu aroma, cuida tu bolsillo.</span><small>© 2026 Esencia</small></footer>
+</body>
+</html>

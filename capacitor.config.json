@@ -1,0 +1,6 @@
+{
+  "appId": "com.esencia.perfumes",
+  "appName": "Esencia",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}

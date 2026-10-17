@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Esencia</string>
+    <string name="title_activity_main">Esencia</string>
+    <string name="package_name">com.esencia.perfumes</string>
+    <string name="custom_url_scheme">com.esencia.perfumes</string>
+</resources>

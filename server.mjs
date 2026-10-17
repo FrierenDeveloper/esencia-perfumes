@@ -1,0 +1,113 @@
+import http from 'node:http';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { extname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = fileURLToPath(new URL('.', import.meta.url));
+const port = Number(process.env.PORT || 8787);
+const apiKey = process.env.SERPAPI_API_KEY || '';
+const dataDir = process.env.DATA_DIR || resolve(root, 'data');
+const historyFile = resolve(dataDir, 'price-history.jsonl');
+const cache = new Map();
+const requests = new Map();
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
+
+function send(res, status, body, headers = {}) {
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-allow-headers': 'Content-Type', ...headers });
+  res.end(JSON.stringify(body));
+}
+function throttle(req) {
+  const key = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  const recent = (requests.get(key) || []).filter(time => now - time < 60_000);
+  if (recent.length >= 15) return false;
+  recent.push(now);
+  requests.set(key, recent);
+  return true;
+}
+function normalizeResult(item) {
+  const rawPrice = Number(item.extracted_price);
+  const price = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : null;
+  const link = item.product_link || item.link || '';
+  let safeLink = '';
+  try { if (new URL(link).protocol === 'https:') safeLink = link; } catch {}
+  let image = '';
+  try { if (new URL(item.thumbnail || '').protocol === 'https:') image = item.thumbnail; } catch {}
+  return {
+    productKey: createHash('sha256').update(`${item.title || ''}|${item.source || ''}`.toLocaleLowerCase('es-CL').replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 24),
+    title: String(item.title || 'Perfume').slice(0, 180),
+    shop: String(item.source || 'Tienda en línea').slice(0, 80),
+    price,
+    priceText: String(item.price || '').slice(0, 60),
+    url: safeLink,
+    image,
+    rating: item.rating ? String(item.rating).slice(0, 10) : '',
+    delivery: String(item.delivery || '').slice(0, 100)
+  };
+}
+async function recordPrices(query, results) {
+  if (!results.length) return;
+  await mkdir(dataDir, { recursive: true });
+  const observedAt = new Date().toISOString();
+  const lines = results.filter(item => item.price !== null).map(item => JSON.stringify({ productKey: item.productKey, query, title: item.title, shop: item.shop, price: item.price, observedAt, url: item.url }));
+  if (lines.length) await appendFile(historyFile, `${lines.join('\n')}\n`, 'utf8');
+}
+async function getPriceHistory(productKey) {
+  try {
+    const content = await readFile(historyFile, 'utf8');
+    return content.split('\n').filter(Boolean).flatMap(line => {
+      try { const record = JSON.parse(line); return record.productKey === productKey ? [record] : []; } catch { return []; }
+    }).slice(-60);
+  } catch { return []; }
+}
+
+const server = http.createServer(async (req, res) => {
+  if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-allow-headers': 'Content-Type' }); return res.end(); }
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  if (url.pathname === '/api/health') return send(res, 200, { ok: true, onlineSearchConfigured: Boolean(apiKey) });
+  if (url.pathname === '/api/history') {
+    const productKey = (url.searchParams.get('product') || '').slice(0, 40);
+    if (!/^[a-f0-9]{24}$/.test(productKey)) return send(res, 400, { error: 'Producto no válido.' });
+    return send(res, 200, { productKey, observations: await getPriceHistory(productKey) });
+  }
+  if (url.pathname === '/api/search') {
+    const query = (url.searchParams.get('q') || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+    if (query.length < 2) return send(res, 400, { error: 'Escribe al menos dos caracteres para buscar.' });
+    if (!apiKey) return send(res, 503, { error: 'La búsqueda de precios aún no está configurada en el servidor.' });
+    if (!throttle(req)) return send(res, 429, { error: 'Has hecho muchas búsquedas. Inténtalo de nuevo en un minuto.' });
+    const cacheKey = query.toLocaleLowerCase('es-CO');
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.time < 5 * 60_000) return send(res, 200, { ...cached.value, cached: true });
+    const shoppingQuery = /perfume|fragancia/i.test(query) ? query : `${query} perfume`;
+    const params = new URLSearchParams({ engine: 'google_shopping', q: shoppingQuery, google_domain: 'google.cl', gl: 'cl', hl: 'es-419', location: 'Chile', api_key: apiKey });
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 15_000);
+    try {
+      const response = await fetch(`https://serpapi.com/search.json?${params}`, { signal: abort.signal, headers: { accept: 'application/json' } });
+      const data = await response.json();
+      if (!response.ok || data.error) return send(res, 502, { error: 'El proveedor de búsqueda no pudo completar la consulta. Inténtalo de nuevo.' });
+      const results = (data.shopping_results || []).map(normalizeResult).filter(item => item.url).sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)).slice(0, 30);
+      await recordPrices(query, results);
+      const value = { query, results, source: 'Google Shopping · Chile', currency: 'CLP', updatedAt: new Date().toISOString() };
+      cache.set(cacheKey, { value, time: Date.now() });
+      return send(res, 200, value);
+    } catch (error) {
+      return send(res, error.name === 'AbortError' ? 504 : 502, { error: error.name === 'AbortError' ? 'La búsqueda tardó demasiado. Vuelve a intentarlo.' : 'No se pudo conectar con el proveedor de precios.' });
+    } finally { clearTimeout(timeout); }
+  }
+  if (req.method !== 'GET') return send(res, 405, { error: 'Método no permitido.' });
+  let requested;
+  try { requested = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1)); }
+  catch { return send(res, 400, { error: 'Ruta no válida.' }); }
+  if (requested === 'data' || requested.startsWith('data/')) { res.writeHead(404); return res.end(); }
+  const file = resolve(root, requested);
+  if (!file.startsWith(root)) return send(res, 403, { error: 'Acceso denegado.' });
+  try {
+    const content = await readFile(file);
+    res.writeHead(200, { 'content-type': mime[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
+    res.end(content);
+  } catch { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); res.end('No encontrado'); }
+});
+
+server.listen(port, '0.0.0.0', () => console.log(`Esencia disponible en http://localhost:${port}`));

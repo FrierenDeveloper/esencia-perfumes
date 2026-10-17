@@ -1,0 +1,13 @@
+node_modules/
+www/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+/android-sdk/
+/gradle-dist/
+/toolchains/
+.env
+/data/
