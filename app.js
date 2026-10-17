@@ -14,6 +14,10 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '
 function getApiBase() {
   const configured = localStorage.getItem(apiStorageKey)?.trim().replace(/\/+$/, '');
   if (configured) return configured;
+  const builtIn = window.ESENCIA_API_BASE_URL?.trim().replace(/\/+$/, '');
+  if (builtIn) return builtIn;
+  const isNativeApp = window.Capacitor?.isNativePlatform?.() || location.hostname === 'localhost' && location.protocol === 'https:';
+  if (isNativeApp) return '';
   return ['http:', 'https:'].includes(location.protocol) ? location.origin : '';
 }
 function webSearchLinks(term) {

@@ -3,12 +3,17 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 8787);
 const apiKey = process.env.SERPAPI_API_KEY || '';
 const dataDir = process.env.DATA_DIR || resolve(root, 'data');
 const historyFile = resolve(dataDir, 'price-history.jsonl');
+const databaseUrl = process.env.DATABASE_URL || '';
+const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 const cache = new Map();
 const requests = new Map();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -48,12 +53,23 @@ function normalizeResult(item) {
 }
 async function recordPrices(query, results) {
   if (!results.length) return;
-  await mkdir(dataDir, { recursive: true });
   const observedAt = new Date().toISOString();
-  const lines = results.filter(item => item.price !== null).map(item => JSON.stringify({ productKey: item.productKey, query, title: item.title, shop: item.shop, price: item.price, observedAt, url: item.url }));
+  const priced = results.filter(item => item.price !== null);
+  if (pool) {
+    for (const item of priced) {
+      await pool.query('INSERT INTO price_observations (product_key, query, title, shop, price, observed_at, url) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.productKey, query, item.title, item.shop, item.price, observedAt, item.url]);
+    }
+    return;
+  }
+  await mkdir(dataDir, { recursive: true });
+  const lines = priced.map(item => JSON.stringify({ productKey: item.productKey, query, title: item.title, shop: item.shop, price: item.price, observedAt, url: item.url }));
   if (lines.length) await appendFile(historyFile, `${lines.join('\n')}\n`, 'utf8');
 }
 async function getPriceHistory(productKey) {
+  if (pool) {
+    const { rows } = await pool.query('SELECT product_key AS "productKey", query, title, shop, price, observed_at AS "observedAt", url FROM price_observations WHERE product_key = $1 ORDER BY observed_at DESC LIMIT 60', [productKey]);
+    return rows.reverse();
+  }
   try {
     const content = await readFile(historyFile, 'utf8');
     return content.split('\n').filter(Boolean).flatMap(line => {
@@ -110,4 +126,20 @@ const server = http.createServer(async (req, res) => {
   } catch { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); res.end('No encontrado'); }
 });
 
-server.listen(port, '0.0.0.0', () => console.log(`Esencia disponible en http://localhost:${port}`));
+async function start() {
+  if (pool) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS price_observations (
+      id BIGSERIAL PRIMARY KEY,
+      product_key VARCHAR(24) NOT NULL,
+      query VARCHAR(100) NOT NULL,
+      title VARCHAR(180) NOT NULL,
+      shop VARCHAR(80) NOT NULL,
+      price NUMERIC(12, 2) NOT NULL,
+      observed_at TIMESTAMPTZ NOT NULL,
+      url TEXT NOT NULL
+    )`);
+    await pool.query('CREATE INDEX IF NOT EXISTS price_observations_product_time_idx ON price_observations (product_key, observed_at DESC)');
+  }
+  server.listen(port, '0.0.0.0', () => console.log(`Esencia disponible en http://localhost:${port}`));
+}
+start().catch(error => { console.error('No se pudo inicializar el servicio:', error); process.exit(1); });

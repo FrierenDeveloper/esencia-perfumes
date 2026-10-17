@@ -28,6 +28,8 @@ Cada resultado recibe un identificador estable por producto y tienda. La app mue
 
 El servidor local guarda el historial en `data/price-history.jsonl`. El sistema de archivos gratuito de Render puede reiniciarse al desplegar o reiniciar el servicio; para conservar el historial en producción, configura almacenamiento persistente o conecta una base de datos antes de usarlo como servicio público.
 
+Si defines `DATABASE_URL`, el backend usa PostgreSQL para guardar y consultar las observaciones. Render ofrece Postgres gratis por 30 días; después elimina la base y sus datos si no se actualiza a un plan de pago. El APK se puede compilar con `ESENCIA_API_BASE_URL=https://tu-servicio.onrender.com npm run android:debug` para que apunte al backend desplegado.
+
 ## Desplegar el backend
 
 `render.yaml` define el servicio Node. Sube el repo a GitHub y crea un Blueprint desde Render; durante la configuración añade la clave `SERPAPI_API_KEY`. Copia la URL pública del backend en **Configuración de búsqueda en la app**. El APK no puede llamar al servidor local de tu computador.
